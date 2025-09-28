@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: 255 255 255;
+  --fg: 17 24 39;
+}
+
+html, body, #__next {
+  height: 100%;
+}
+
+body {
+  color: rgb(var(--fg));
+  background: rgb(var(--bg));
+}
+
+.card {
+  @apply rounded-xl border border-gray-200 bg-white shadow-sm;
+}
+
+.card-header {
+  @apply px-4 py-3 border-b border-gray-100 font-medium text-gray-700;
+  /* brand accent line */
+  border-top: 3px solid theme('colors.brand.600');
+}
+
+.card-content {
+  @apply p-4;
+}
