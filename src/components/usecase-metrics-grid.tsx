@@ -51,7 +51,7 @@ export default function UseCaseMetricsGrid({ allUseCases }: { allUseCases: UseCa
     params.delete('uc');
     for (const id of selected) params.append('uc', id);
     const qs = params.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname);
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }, [pathname, router, sp, selected]);
 
   async function fetchAgg() {

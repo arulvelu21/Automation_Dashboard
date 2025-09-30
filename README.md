@@ -8,11 +8,17 @@ Internal reporting dashboard for automation use cases and execution details, bac
 - PostgreSQL (pg)
 - Chart.js via react-chartjs-2
 
+## Prerequisites
+
+- Node.js 20 LTS is recommended for Next.js 14. This repo includes an `.nvmrc` with `20`.
+  - If you use nvm: `nvm install 20 && nvm use`
+  - If you use fnm/asdf/volta, align to Node 20.
+
 ## Quick start
 
 1. Install dependencies
 ```bash
-npm install
+npm ci
 ```
 
 2. Create a `.env.local` (or set env vars) for PostgreSQL
@@ -35,6 +41,7 @@ If env is not set or DB is unreachable, the app uses mock data so you can still 
 ```bash
 npm run dev
 ```
+The dev server uses port 3000; if it's busy, it will fall back to 3001.
 
 4. Build and start (optional)
 ```bash
@@ -45,6 +52,12 @@ npm run dev
 - Server-side filtering by selected use case names for reporting aggregates for better performance on large datasets.
 - Reporting table alignment: consistent numeric alignment, two-line unit headers, fixed column widths, and hours standardized to two decimals.
 - Recent Activity section based on reporting daily aggregates (no dependency on legacy runs table).
+- Prevent page jump: all query-string updates (filters, toggles, use case selections) use `scroll: false` so the view doesn't auto-scroll to the top.
+- Top Use Cases cards have equal height and aligned content across the grid for a cleaner layout.
+- Data layer is resilient when tables are missing:
+  - If the configured reporting table is absent, aggregates return an empty list (no 500).
+  - Savings reference table is optional; if it's missing, savings default to zero instead of throwing.
+- Node version pinning: added `.nvmrc` (Node 20) for consistent local dev.
 
 ## Data model & mapping
 This dashboard primarily uses two tables:
@@ -92,6 +105,23 @@ Fixed savings period (new)
   - `per_range` (also: `range`, `total`) — count fixed once per selected date range
 
 Assumption: savings values are stored in minutes. The UI converts to hours for display. If your data is already in hours, you can adjust the conversion in the UI or data layer.
+
+## Troubleshooting
+
+- Error: Cannot find module `./cjs/react-dom-server-legacy.browser.development.js` (require stack includes `react-dom/server.browser.js`)
+  - Cause: Node 23+ + corrupted install can trip Next.js 14’s react-dom resolution.
+  - Fix:
+    1) Use Node 20 (see `.nvmrc`).
+    2) Clean reinstall: `rm -rf node_modules .next && npm ci && npm run dev`.
+
+- Error: Cannot find module `postcss-value-parser/lib/index.js`
+  - Fix: `rm -rf node_modules .next && npm ci && npm run dev`.
+
+- Port 3000 in use
+  - The dev server automatically tries 3001. Or stop the existing process using 3000.
+
+- Database not configured
+  - The app will render with empty data instead of throwing. Set `DATABASE_URL` or `PG*` env vars to enable real data.
 
 ## API
 ### Reporting aggregates

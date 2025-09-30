@@ -482,7 +482,8 @@ type FixedPeriod = 'per_day' | 'per_week' | 'per_month' | 'per_range';
 export async function getReportingAggregates(opts: { from?: string | Date; to?: string | Date; search?: string; names?: string[]; fixedPeriod?: FixedPeriod } = {}): Promise<ReportingAggregate[]> {
   const reportingTable = process.env.REPORTING_TABLE || 'reporting';
   if (!(await tableExists(reportingTable))) {
-    throw new Error(`Table ${reportingTable} not found`);
+    // Gracefully degrade to empty when reporting table is unavailable
+    return [];
   }
 
   // fetch reporting columns to find identifiers
@@ -634,19 +635,26 @@ export async function getReportingAggregates(opts: { from?: string | Date; to?: 
     partial: Number(r.partial ?? 0),
   }));
 
-  // Fetch savings ref map
-  const savRes = await query(
-    `SELECT CAST(use_case_name AS TEXT) AS use_case_name, 
-            COALESCE(fixed_savings_per_run,0) AS fixed, 
-            COALESCE(savings_per_run,0) AS variable,
-            COALESCE(partial_savings_per_run,0) AS partial,
-            CAST(savings_type AS TEXT) AS savings_type
-     FROM usecase_savings_ref`
-  );
+  // Fetch savings ref map (optional). If the reference table is missing, proceed with zero savings.
   const savMap = new Map<string, { fixed: number; variable: number; partial: number; type?: string | null }>();
-  for (const r of (savRes?.rows ?? []) as any[]) {
-    const key = String(r.use_case_name).trim().toLowerCase();
-    savMap.set(key, { fixed: Number(r.fixed ?? 0), variable: Number(r.variable ?? 0), partial: Number(r.partial ?? 0), type: r.savings_type ?? null });
+  try {
+    if (await tableExists('usecase_savings_ref')) {
+      const savRes = await query(
+        `SELECT CAST(use_case_name AS TEXT) AS use_case_name, 
+                COALESCE(fixed_savings_per_run,0) AS fixed, 
+                COALESCE(savings_per_run,0) AS variable,
+                COALESCE(partial_savings_per_run,0) AS partial,
+                CAST(savings_type AS TEXT) AS savings_type
+         FROM usecase_savings_ref`
+      );
+      for (const r of (savRes?.rows ?? []) as any[]) {
+        const key = String(r.use_case_name).trim().toLowerCase();
+        savMap.set(key, { fixed: Number(r.fixed ?? 0), variable: Number(r.variable ?? 0), partial: Number(r.partial ?? 0), type: r.savings_type ?? null });
+      }
+    }
+  } catch (err) {
+    // If the table is missing for any reason, ignore and continue with empty savings
+    if (!isMissingRelationError(err)) throw err;
   }
 
   // Compute minutes saved

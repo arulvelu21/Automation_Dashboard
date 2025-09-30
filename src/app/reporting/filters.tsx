@@ -13,7 +13,7 @@ export function ReportingFilters() {
     const params = new URLSearchParams(sp.toString());
     if (value) params.set(param, value); else params.delete(param);
     const qs = params.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname);
+    router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }
 
   return (
