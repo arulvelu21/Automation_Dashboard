@@ -168,12 +168,13 @@ let tableExistsCache: Record<string, boolean> = {};
 
 async function tableExists(tableName: string): Promise<boolean> {
   if (tableExistsCache[tableName] !== undefined) return tableExistsCache[tableName];
+  const schema = process.env.PGSCHEMA;
   const res = await query<{ exists: boolean }>(
     `SELECT EXISTS (
        SELECT 1 FROM information_schema.tables 
-       WHERE table_schema = current_schema() AND table_name = $1
+       WHERE table_schema = COALESCE(nullif($2, ''), current_schema()) AND table_name = $1
      ) AS exists`,
-    [tableName]
+    [tableName, schema]
   );
   const exists = !!res?.rows?.[0]?.exists;
   tableExistsCache[tableName] = exists;
@@ -196,11 +197,12 @@ export async function getUseCasesFromSavingsRef(opts: { search?: string; status?
   const offset = Math.max(opts.offset ?? 0, 0);
   const search = opts.search;
   // Fetch column metadata
+  const schema = process.env.PGSCHEMA;
   const colsRes = await query<{ column_name: string; data_type: string }>(
     `SELECT column_name, data_type 
      FROM information_schema.columns 
-     WHERE table_schema = current_schema() AND table_name = $1`,
-    ['usecase_savings_ref']
+     WHERE table_schema = COALESCE(nullif($2, ''), current_schema()) AND table_name = $1`,
+    ['usecase_savings_ref', schema]
   );
   if (!colsRes || colsRes.rowCount === 0) {
     throw new Error('Table usecase_savings_ref not found in current schema');
@@ -399,11 +401,12 @@ export async function getUseCaseOverviewByName(name: string): Promise<UseCaseOve
   // Prefer savings ref if available, attempting to map likely columns dynamically
   if (await tableExists('usecase_savings_ref')) {
     try {
+      const schema = process.env.PGSCHEMA;
       const colsRes = await query<{ column_name: string; data_type: string }>(
         `SELECT column_name, data_type 
          FROM information_schema.columns 
-         WHERE table_schema = current_schema() AND table_name = $1`,
-        ['usecase_savings_ref']
+         WHERE table_schema = COALESCE(nullif($2, ''), current_schema()) AND table_name = $1`,
+        ['usecase_savings_ref', schema]
       );
       const cols = (colsRes?.rows ?? []).map((r) => r.column_name.toLowerCase());
       const set = new Set(cols);
@@ -487,9 +490,10 @@ export async function getReportingAggregates(opts: { from?: string | Date; to?: 
   }
 
   // fetch reporting columns to find identifiers
+  const schema = process.env.PGSCHEMA;
   const colsRes = await query<{ column_name: string; data_type: string }>(
-    `SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1`,
-    [reportingTable]
+    `SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = COALESCE(nullif($2, ''), current_schema()) AND table_name = $1`,
+    [reportingTable, schema]
   );
   const colSet = new Set((colsRes?.rows ?? []).map((r) => r.column_name.toLowerCase()));
   const colsByType = new Map<string, string[]>();
@@ -701,9 +705,10 @@ export async function getReportingDailyAggregates(opts: { from?: string | Date; 
   }
 
   // fetch reporting columns to find identifiers
+  const schema = process.env.PGSCHEMA;
   const colsRes = await query<{ column_name: string; data_type: string }>(
-    `SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1`,
-    [reportingTable]
+    `SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = COALESCE(nullif($2, ''), current_schema()) AND table_name = $1`,
+    [reportingTable, schema]
   );
   const colSet = new Set((colsRes?.rows ?? []).map((r) => r.column_name.toLowerCase()));
   const colsByType = new Map<string, string[]>();

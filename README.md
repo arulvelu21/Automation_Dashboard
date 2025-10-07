@@ -1,6 +1,45 @@
 # Automation Dashboard
 
-Internal reporting dashboard for automation use cases and execution details, backed by PostgreSQL with a mock fallback for local development.
+Internal reporting dashboard for automation use cases and execution details, backed by Postgr## Troubleshooting
+
+### Database Issues
+- **Database not configured**
+  - The app will render with empty data instead of throwing. Set `DATABASE_URL` or `PG*` env vars to enable real data.
+
+- **Schema not found or tables missing**
+  - Verify your `PGSCHEMA` matches your actual schema name
+  - Test connection: `node scripts/check-db.mjs`
+  - Initialize tables: `node scripts/init-db.mjs`
+
+- **Connection issues**
+  - Check database credentials in `.env.local`
+  - Ensure database server is running and accessible
+  - For Docker/remote databases, verify network connectivity
+
+### Application Issues
+- **Error: Cannot find module `./cjs/react-dom-server-legacy.browser.development.js`**
+  - Cause: Node 23+ + corrupted install can trip Next.js 14's react-dom resolution.
+  - Fix:
+    1) Use Node 20 (see `.nvmrc`).
+    2) Clean reinstall: `rm -rf node_modules .next && npm ci && npm run dev`.
+
+- **Error: Cannot find module `postcss-value-parser/lib/index.js`**
+  - Fix: `rm -rf node_modules .next && npm ci && npm run dev`.
+
+- **Port 3000 in use**
+  - The dev server automatically tries 3001. Or stop the existing process using 3000.
+
+### Database Utilities
+```bash
+# Test database connection and schema
+node scripts/check-db.mjs
+
+# Initialize database tables
+node scripts/init-db.mjs
+
+# Peek at existing use cases data
+node scripts/peek-usecases.mjs
+``` fallback for local development.
 
 ## Stack
 - Next.js 14 (App Router, TypeScript)
@@ -23,19 +62,22 @@ npm ci
 
 2. Create a `.env.local` (or set env vars) for PostgreSQL
 ```bash
-# Either a single connection string
-# DATABASE_URL=postgres://user:password@host:5432/dbname
+# Either a single connection string with schema
+# DATABASE_URL=postgres://user:password@host:5432/dbname?searchPath=schema_name
 
-# Or individual vars
-# PGHOST=localhost
-# PGPORT=5432
-# PGUSER=postgres
-# PGPASSWORD=postgres
-# PGDATABASE=automation
+# Or individual vars (recommended)
+PGHOST=localhost
+PGPORT=5432
+PGUSER=myuser
+PGPASSWORD=mypassword
+PGDATABASE=resolve_automation
+PGSCHEMA=resolve_automation
 # Optional: require SSL for managed PG
 # PGSSL=require
 ```
 If env is not set or DB is unreachable, the app uses mock data so you can still develop the UI.
+
+**Note:** The application supports custom PostgreSQL schemas. Set `PGSCHEMA` to specify which schema contains your tables. If not specified, it defaults to the database's default schema (usually `public`).
 
 3. Run the app
 ```bash
@@ -86,15 +128,21 @@ Legacy/optional tables
 - `automation_use_cases` and `automation_runs` are optional. The UI no longer requires them; any remaining references are guarded and will not crash if these tables are absent.
 
 ## Environment variables
-Core DB connection: see Quick start.
 
-Reporting table & columns (optional overrides)
+### Core DB connection
+See Quick start section above. Key variables:
+- `DATABASE_URL` - Full connection string (can include `?searchPath=schema_name`)
+- `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` - Individual connection parameters
+- `PGSCHEMA` - PostgreSQL schema name (e.g., `resolve_automation`)
+- `PGSSL` - Set to `require` for SSL connections
+
+### Reporting table & columns (optional overrides)
 - `REPORTING_TABLE` (default: `reporting`)
 - `REPORTING_NAME_COLUMN` (e.g., `use_case_name`)
 - `REPORTING_DATE_COLUMN` (e.g., `date`, `reported_at`)
 - `REPORTING_SUCCESS_COLUMN`, `REPORTING_FAILURE_COLUMN`, `REPORTING_INVALID_COLUMN`, `REPORTING_PARTIAL_COLUMN`
 
-Use case reference preference (optional)
+### Use case reference preference (optional)
 - `USECASE_TABLE=usecase_savings_ref` to prefer the savings reference table for listing live use cases.
 
 Fixed savings period (new)
@@ -174,13 +222,28 @@ This dashboard is styled with a Tesco-inspired palette. To show the logo in the 
 
 You can adjust brand colors in `tailwind.config.ts` under `theme.extend.colors.brand` (Tesco blue) and `colors.tescoRed` (Tesco red).
 
-## Expected DB schema
-You can adapt to your own schema. The queries assume:
+## Database Schema Support
 
+### Schema Configuration
+The application supports custom PostgreSQL schemas. Configure via environment variables:
+- Set `PGSCHEMA=your_schema_name` to use a specific schema
+- All tables will be accessed within this schema
+- If not specified, uses the database's default schema
+
+### Expected Table Structure
+The application dynamically detects and works with these tables in your configured schema:
+
+#### Primary Tables (Optional - fallback to mock data if missing)
 ```sql
+-- Legacy tables (optional, for backward compatibility)
 CREATE TABLE automation_use_cases (
   id text PRIMARY KEY,
-  name text NOT NULL
+  name text NOT NULL,
+  description text,
+  owner text,
+  status text NOT NULL CHECK (status IN ('ACTIVE','DEPRECATED','DRAFT')) DEFAULT 'ACTIVE',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz
 );
 
 CREATE TABLE automation_runs (
@@ -192,7 +255,41 @@ CREATE TABLE automation_runs (
 );
 ```
 
-Update `src/lib/data.ts` if your schema differs.
+#### Reporting Tables (Auto-detected column mapping)
+```sql
+-- Main reporting table (configurable name via REPORTING_TABLE env var)
+CREATE TABLE reporting (
+  use_case_name text,
+  date date,
+  success integer,
+  failure integer,
+  invalid integer,
+  partial integer
+  -- Column names are auto-detected and can be overridden via env vars
+);
+
+-- Use case savings reference (preferred for live use cases)
+CREATE TABLE usecase_savings_ref (
+  use_case_name text,
+  savings_type text,
+  fixed_savings_per_run numeric,
+  savings_per_run numeric,
+  partial_savings_per_run numeric,
+  stakeholder text,
+  short_desc text,
+  hld_link text
+  -- Column names are auto-detected dynamically
+);
+```
+
+### Schema Initialization
+Use the provided script to create tables in your schema:
+```bash
+# Set your schema in .env.local first, then run:
+node scripts/init-db.mjs
+```
+
+The application gracefully handles missing tables and will use mock data for development.
 
 ## Project structure
 - `src/app` – app routes (App Router)

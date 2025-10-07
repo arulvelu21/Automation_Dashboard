@@ -12,9 +12,9 @@ if (fs.existsSync(envLocal)) {
 }
 
 function getConfig() {
-  const { DATABASE_URL, PGHOST, PGUSER, PGPASSWORD, PGDATABASE, PGPORT, PGSSL } = process.env;
+  const { DATABASE_URL, PGHOST, PGUSER, PGPASSWORD, PGDATABASE, PGPORT, PGSSL, PGSCHEMA } = process.env;
   if (DATABASE_URL) {
-    return { connectionString: DATABASE_URL, ssl: PGSSL === 'require' ? { rejectUnauthorized: false } : undefined };
+    return { connectionString: DATABASE_URL, ssl: PGSSL === 'require' ? { rejectUnauthorized: false } : undefined, schema: PGSCHEMA };
   }
   if (!PGHOST || !PGUSER || !PGPASSWORD || !PGDATABASE) {
     throw new Error('Missing PG env. Provide DATABASE_URL or PGHOST/PGUSER/PGPASSWORD/PGDATABASE');
@@ -26,11 +26,20 @@ function getConfig() {
     database: PGDATABASE,
     port: PGPORT ? Number(PGPORT) : 5432,
     ssl: PGSSL === 'require' ? { rejectUnauthorized: false } : undefined,
+    schema: PGSCHEMA,
   };
 }
 
-const ddl = `
-CREATE TABLE IF NOT EXISTS automation_use_cases (
+const getDDL = (schema) => {
+  const schemaPrefix = schema ? `${schema}.` : '';
+  return `
+-- Create schema if it doesn't exist
+${schema ? `CREATE SCHEMA IF NOT EXISTS ${schema};` : ''}
+
+-- Set search path to use the schema
+${schema ? `SET search_path TO ${schema};` : ''}
+
+CREATE TABLE IF NOT EXISTS ${schemaPrefix}automation_use_cases (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   description TEXT,
@@ -40,14 +49,15 @@ CREATE TABLE IF NOT EXISTS automation_use_cases (
   updated_at TIMESTAMPTZ
 );
 
-CREATE TABLE IF NOT EXISTS automation_runs (
+CREATE TABLE IF NOT EXISTS ${schemaPrefix}automation_runs (
   id TEXT PRIMARY KEY,
-  use_case_id TEXT NOT NULL REFERENCES automation_use_cases(id) ON DELETE CASCADE,
+  use_case_id TEXT NOT NULL REFERENCES ${schemaPrefix}automation_use_cases(id) ON DELETE CASCADE,
   status TEXT NOT NULL CHECK (status IN ('PASS','FAIL','SKIP','RUNNING')),
   duration_seconds INTEGER NOT NULL,
   started_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 `;
+};
 
 const seedUseCases = async (client) => {
   const { rows } = await client.query('SELECT COUNT(*)::int AS n FROM automation_use_cases');
@@ -76,11 +86,19 @@ const seedUseCases = async (client) => {
 
 async function main() {
   const cfg = getConfig();
-  const client = new Client(cfg);
+  const { schema, ...clientConfig } = cfg;
+  const client = new Client(clientConfig);
   await client.connect();
   try {
-    console.log('Creating tables if not exists...');
+    console.log('Creating schema and tables if not exists...');
+    const ddl = getDDL(schema);
     await client.query(ddl);
+    
+    // Set search path for subsequent queries
+    if (schema) {
+      await client.query(`SET search_path TO ${schema}`);
+    }
+    
     console.log('Seeding use cases (if empty)...');
     await seedUseCases(client);
     console.log('Done.');

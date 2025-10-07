@@ -4,13 +4,33 @@ let pool: Pool | null = null;
 
 export function getPool() {
   if (pool) return pool;
-  const { PGHOST, PGUSER, PGPASSWORD, PGDATABASE, PGPORT, DATABASE_URL } = process.env;
+  const { PGHOST, PGUSER, PGPASSWORD, PGDATABASE, PGPORT, DATABASE_URL, PGSCHEMA } = process.env;
   const hasUrl = !!DATABASE_URL;
   if (hasUrl) {
     pool = new Pool({ connectionString: DATABASE_URL, ssl: getSSL() });
   } else if (PGHOST && PGUSER && PGPASSWORD && PGDATABASE) {
-    pool = new Pool({ host: PGHOST, user: PGUSER, password: PGPASSWORD, database: PGDATABASE, port: PGPORT ? Number(PGPORT) : 5432, ssl: getSSL() });
+    const config = { 
+      host: PGHOST, 
+      user: PGUSER, 
+      password: PGPASSWORD, 
+      database: PGDATABASE, 
+      port: PGPORT ? Number(PGPORT) : 5432, 
+      ssl: getSSL()
+    };
+    pool = new Pool(config);
   }
+  
+  // Set schema if specified
+  if (pool && PGSCHEMA) {
+    pool.on('connect', async (client) => {
+      try {
+        await client.query(`SET search_path TO ${PGSCHEMA}`);
+      } catch (err) {
+        console.error('Failed to set schema:', err);
+      }
+    });
+  }
+  
   return pool;
 }
 
