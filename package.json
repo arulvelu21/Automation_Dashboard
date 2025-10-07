@@ -10,7 +10,12 @@
     "typecheck": "tsc --noEmit",
     "db:init": "node ./scripts/init-db.mjs",
     "db:check": "node ./scripts/check-db.mjs",
-    "db:peek": "node ./scripts/peek-usecases.mjs"
+    "db:peek": "node ./scripts/peek-usecases.mjs",
+    "logs:status": "./scripts/manage-logs.sh status",
+    "logs:tail": "./scripts/manage-logs.sh tail",
+    "logs:search": "./scripts/manage-logs.sh search",
+    "logs:clean": "./scripts/manage-logs.sh clean",
+    "logs:analyze": "./scripts/manage-logs.sh analyze"
   },
   "dependencies": {
     "chart.js": "^4.4.4",
@@ -20,9 +25,12 @@
     "lucide-react": "^0.465.0",
     "next": "^14.2.5",
     "pg": "^8.12.0",
+    "pino": "^10.0.0",
+    "pino-pretty": "^13.1.1",
     "react": "^18.3.1",
     "react-chartjs-2": "^5.2.0",
     "react-dom": "^18.3.1",
+    "rotating-file-stream": "^3.2.7",
     "zod": "^3.23.8"
   },
   "devDependencies": {

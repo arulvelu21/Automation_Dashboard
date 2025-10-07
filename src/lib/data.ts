@@ -1,5 +1,6 @@
 import { query, isMissingRelationError } from "./db";
 import { z } from "zod";
+import { appLogger, logError } from "./server-logger";
 
 export type RunStatus = "PASS" | "FAIL" | "SKIP" | "RUNNING";
 
@@ -105,7 +106,12 @@ export async function getUseCases(opts: { search?: string; status?: UseCaseStatu
       return await getUseCasesFromSavingsRef(opts);
     } catch (e) {
       // Fall back silently if mapping fails, so the page still renders using the default table
-      console.warn('usecase_savings_ref query failed, falling back to automation_use_cases:', e);
+      appLogger.warn({
+        operation: 'usecase_fallback',
+        attemptedTable: 'usecase_savings_ref',
+        fallbackTable: 'automation_use_cases',
+        error: (e as Error).message
+      }, 'usecase_savings_ref query failed, falling back to automation_use_cases');
     }
   }
 
@@ -437,7 +443,12 @@ export async function getUseCaseOverviewByName(name: string): Promise<UseCaseOve
         }
       }
     } catch (e) {
-      console.warn('getUseCaseOverviewByName savings_ref lookup failed:', e);
+      appLogger.warn({
+        operation: 'use_case_overview_lookup',
+        table: 'usecase_savings_ref',
+        useCaseName: n,
+        error: (e as Error).message
+      }, 'getUseCaseOverviewByName savings_ref lookup failed');
     }
   }
 

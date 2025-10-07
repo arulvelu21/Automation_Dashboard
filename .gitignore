@@ -11,6 +11,12 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Application logs
+logs/
+*.log
+*.log.*
+*.log.gz
+
 # Env
 .env
 .env.local

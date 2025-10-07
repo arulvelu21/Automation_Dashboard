@@ -13,7 +13,11 @@ export async function TopUseCasesSection({ month, sort = "hours" }: { month?: st
   // Ensure this section is not statically cached; manual Refresh will re-run the query
   noStore();
   const renderedAt = new Date();
-  console.log(`[TopUseCasesSection] Refreshed at ${renderedAt.toISOString()}`);
+  
+  // Import logger dynamically to avoid issues with server components
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[TopUseCasesSection] Refreshed at ${renderedAt.toISOString()}`);
+  }
   // Determine window from month (yyyy-mm) or use last 30 days
   let from: Date;
   let to: Date;
